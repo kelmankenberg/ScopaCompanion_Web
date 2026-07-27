@@ -14,6 +14,7 @@ interface HeaderProps {
   cloudSyncStatus: 'disabled' | 'connecting' | 'syncing' | 'synced' | 'error';
   cloudSyncError: string | null;
   cloudLastSyncedAt: number | null;
+  appVersion: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
   cloudSyncStatus,
   cloudSyncError,
   cloudLastSyncedAt,
+  appVersion,
 }) => {
   const [isSyncPanelOpen, setIsSyncPanelOpen] = useState<boolean>(false);
 
@@ -69,7 +71,10 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="logo-card gold">7♦</span>
         </div>
         <div className="logo-text">
-          <h1>Scopa Companion</h1>
+          <div className="logo-title-row">
+            <h1>Scopa Companion</h1>
+            <span className="app-version-badge">v{appVersion}</span>
+          </div>
           <span className="logo-subtitle">Scorekeeper & Game Assistant</span>
         </div>
       </div>

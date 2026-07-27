@@ -116,6 +116,19 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
+.logo-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.app-version-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  letter-spacing: 0.4px;
+}
+
 .logo-subtitle {
   font-size: 0.75rem;
   color: var(--accent-gold-dark);
@@ -1581,8 +1594,11 @@ body {
 }
 
 .custom-score-box {
+  flex: 1;
+  min-width: 140px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 8px 14px;
   background: rgba(255, 255, 255, 0.04);
@@ -1596,7 +1612,9 @@ body {
 }
 
 .custom-score-input {
-  width: 70px;
+  width: 100%;
+  min-width: 84px;
+  max-width: 110px;
   background: none;
   border: none;
   color: #ffffff;
@@ -1604,6 +1622,11 @@ body {
   font-weight: 700;
   outline: none;
   text-align: center;
+}
+
+.custom-score-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
 }
 
 .pts-suffix {

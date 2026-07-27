@@ -11,9 +11,11 @@ import { StatsModal } from './components/StatsModal';
 import { VictoryModal } from './components/VictoryModal';
 import { soundManager } from './utils/soundEffects';
 import { isCloudSyncConfigured, loadCloudGameState, saveCloudGameState } from './utils/cloudSync';
+import packageJson from '../package.json';
 
 const LOCAL_STORAGE_KEY = 'scopa_companion_game_v1';
 type CloudSyncStatus = 'disabled' | 'connecting' | 'syncing' | 'synced' | 'error';
+const APP_VERSION = packageJson.version || '0.0.0';
 
 const defaultSettings: GameSettings = {
   gameMode: '1v1',
@@ -399,6 +401,7 @@ export const App: React.FC = () => {
         cloudSyncStatus={cloudSyncStatus}
         cloudSyncError={cloudSyncError}
         cloudLastSyncedAt={cloudLastSyncedAt}
+        appVersion={APP_VERSION}
       />
 
       {/* Main Content Area */}
