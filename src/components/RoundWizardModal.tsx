@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { X, Check, ArrowRight, ArrowLeft, Zap, Layers } from 'lucide-react';
 
 import type { GameSettings, Suit } from '../types/scopa';
@@ -24,11 +24,20 @@ export const RoundWizardModal: React.FC<RoundWizardModalProps> = ({
   settings,
   roundNumber,
 }) => {
-  const createZeroCountMap = () => Object.fromEntries(entities.map((e) => [e.id, 0]));
-  const createPrimieraSelectionMap = () =>
-    Object.fromEntries(
-      entities.map((e) => [e.id, { denari: null, coppe: null, spade: null, bastoni: null }])
-    );
+  const isTwoPlayers = entities.length === 2;
+
+  const createZeroCountMap = useCallback(
+    () => Object.fromEntries(entities.map((e) => [e.id, 0])),
+    [entities]
+  );
+
+  const createPrimieraSelectionMap = useCallback(
+    () =>
+      Object.fromEntries(
+        entities.map((e) => [e.id, { denari: null, coppe: null, spade: null, bastoni: null }])
+      ),
+    [entities]
+  );
 
   const [entryMode, setEntryMode] = useState<'wizard' | 'override'>('wizard');
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -37,9 +46,9 @@ export const RoundWizardModal: React.FC<RoundWizardModalProps> = ({
   const [scopas, setScopas] = useState<Record<string, number>>(() => createZeroCountMap());
   const [settebelloId, setSettebelloId] = useState<string | null>(null);
   const [denariCount, setDenariCount] = useState<Record<string, number>>(() => createZeroCountMap());
-  const [denariAutoBalance, setDenariAutoBalance] = useState<boolean>(entities.length === 2);
+  const [denariAutoBalance, setDenariAutoBalance] = useState<boolean>(isTwoPlayers);
   const [cardsCount, setCardsCount] = useState<Record<string, number>>(() => createZeroCountMap());
-  const [cardsAutoBalance, setCardsAutoBalance] = useState<boolean>(entities.length === 2);
+  const [cardsAutoBalance, setCardsAutoBalance] = useState<boolean>(isTwoPlayers);
   const [primieraSelections, setPrimieraSelections] = useState<Record<string, Record<Suit, number | null>>>(() => createPrimieraSelectionMap());
   const [napolaCount, setNapolaCount] = useState<Record<string, number>>(() => createZeroCountMap());
   const [reBelloId, setReBelloId] = useState<string | null>(null);
@@ -54,15 +63,15 @@ export const RoundWizardModal: React.FC<RoundWizardModalProps> = ({
       setScopas(createZeroCountMap());
       setSettebelloId(null);
       setDenariCount(createZeroCountMap());
-      setDenariAutoBalance(entities.length === 2);
+      setDenariAutoBalance(isTwoPlayers);
       setCardsCount(createZeroCountMap());
-      setCardsAutoBalance(entities.length === 2);
+      setCardsAutoBalance(isTwoPlayers);
       setPrimieraSelections(createPrimieraSelectionMap());
       setNapolaCount(createZeroCountMap());
       setReBelloId(null);
       setOverrideScores(createZeroCountMap());
     }
-  }, [isOpen]);
+  }, [isOpen, isTwoPlayers, createZeroCountMap, createPrimieraSelectionMap]);
 
   if (!isOpen) return null;
 
