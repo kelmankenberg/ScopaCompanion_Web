@@ -24,41 +24,43 @@ export const RoundWizardModal: React.FC<RoundWizardModalProps> = ({
   settings,
   roundNumber,
 }) => {
+  const createZeroCountMap = () => Object.fromEntries(entities.map((e) => [e.id, 0]));
+  const createPrimieraSelectionMap = () =>
+    Object.fromEntries(
+      entities.map((e) => [e.id, { denari: null, coppe: null, spade: null, bastoni: null }])
+    );
+
   const [entryMode, setEntryMode] = useState<'wizard' | 'override'>('wizard');
   const [currentStep, setCurrentStep] = useState<number>(1);
 
   // Wizard State
-  const [scopas, setScopas] = useState<Record<string, number>>(() =>
-    Object.fromEntries(entities.map((e) => [e.id, 0]))
-  );
+  const [scopas, setScopas] = useState<Record<string, number>>(() => createZeroCountMap());
   const [settebelloId, setSettebelloId] = useState<string | null>(null);
-  const [denariCount, setDenariCount] = useState<Record<string, number>>(() =>
-    Object.fromEntries(entities.map((e) => [e.id, 0]))
-  );
+  const [denariCount, setDenariCount] = useState<Record<string, number>>(() => createZeroCountMap());
   const [denariAutoBalance, setDenariAutoBalance] = useState<boolean>(entities.length === 2);
-  const [cardsCount, setCardsCount] = useState<Record<string, number>>(() =>
-    Object.fromEntries(entities.map((e) => [e.id, 0]))
-  );
+  const [cardsCount, setCardsCount] = useState<Record<string, number>>(() => createZeroCountMap());
   const [cardsAutoBalance, setCardsAutoBalance] = useState<boolean>(entities.length === 2);
-  const [primieraSelections, setPrimieraSelections] = useState<Record<string, Record<Suit, number | null>>>(() =>
-    Object.fromEntries(
-      entities.map((e) => [e.id, { denari: null, coppe: null, spade: null, bastoni: null }])
-    )
-  );
-  const [napolaCount, setNapolaCount] = useState<Record<string, number>>(() =>
-    Object.fromEntries(entities.map((e) => [e.id, 0]))
-  );
+  const [primieraSelections, setPrimieraSelections] = useState<Record<string, Record<Suit, number | null>>>(() => createPrimieraSelectionMap());
+  const [napolaCount, setNapolaCount] = useState<Record<string, number>>(() => createZeroCountMap());
   const [reBelloId, setReBelloId] = useState<string | null>(null);
 
   // Manual Override State
-  const [overrideScores, setOverrideScores] = useState<Record<string, number>>(() =>
-    Object.fromEntries(entities.map((e) => [e.id, 0]))
-  );
+  const [overrideScores, setOverrideScores] = useState<Record<string, number>>(() => createZeroCountMap());
 
   useEffect(() => {
     if (isOpen) {
       setEntryMode('wizard');
       setCurrentStep(1);
+      setScopas(createZeroCountMap());
+      setSettebelloId(null);
+      setDenariCount(createZeroCountMap());
+      setDenariAutoBalance(entities.length === 2);
+      setCardsCount(createZeroCountMap());
+      setCardsAutoBalance(entities.length === 2);
+      setPrimieraSelections(createPrimieraSelectionMap());
+      setNapolaCount(createZeroCountMap());
+      setReBelloId(null);
+      setOverrideScores(createZeroCountMap());
     }
   }, [isOpen]);
 

@@ -60,6 +60,17 @@ export const StatsModal: React.FC<StatsModalProps> = ({
     }
   }
 
+  const rankedEntities = entities
+    .map((e) => ({
+      ...e,
+      stats: stats[e.id],
+    }))
+    .sort((a, b) => (b.stats?.totalPts || 0) - (a.stats?.totalPts || 0));
+
+  const totalScopas = entities.reduce((sum, e) => sum + (stats[e.id]?.scopas || 0), 0);
+  const totalPrimieras = entities.reduce((sum, e) => sum + (stats[e.id]?.primieras || 0), 0);
+  const totalSettebellos = entities.reduce((sum, e) => sum + (stats[e.id]?.settebellos || 0), 0);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-container stats-modal" onClick={(e) => e.stopPropagation()}>
@@ -73,9 +84,34 @@ export const StatsModal: React.FC<StatsModalProps> = ({
           </button>
         </div>
 
-        <div className="modal-body custom-scrollbar">
-          <div className="stats-summary-meta">
-            <span>Total Rounds Played: <strong>{rounds.length}</strong></span>
+        <div className="modal-body stats-modal-body custom-scrollbar">
+          <div className="stats-overview-grid">
+            <div className="stats-overview-card highlight">
+              <span className="stats-overview-label">Rounds Played</span>
+              <strong className="stats-overview-value">{rounds.length}</strong>
+            </div>
+            <div className="stats-overview-card">
+              <span className="stats-overview-label">Total Scopas</span>
+              <strong className="stats-overview-value">{totalScopas}</strong>
+            </div>
+            <div className="stats-overview-card">
+              <span className="stats-overview-label">Primieras Awarded</span>
+              <strong className="stats-overview-value">{totalPrimieras}</strong>
+            </div>
+            <div className="stats-overview-card">
+              <span className="stats-overview-label">Settebellos Captured</span>
+              <strong className="stats-overview-value">{totalSettebellos}</strong>
+            </div>
+          </div>
+
+          <div className="stats-summary-strip">
+            {rankedEntities.map((entry, index) => (
+              <div key={entry.id} className="stats-summary-pill" style={{ borderColor: entry.color }}>
+                <span className="stats-summary-rank">#{index + 1}</span>
+                <span className="stats-summary-name">{entry.name}</span>
+                <strong className="stats-summary-points">{entry.stats?.totalPts || 0} pts</strong>
+              </div>
+            ))}
           </div>
 
           <div className="stats-grid">
@@ -87,21 +123,32 @@ export const StatsModal: React.FC<StatsModalProps> = ({
 
               return (
                 <div key={e.id} className="stat-card" style={{ borderTopColor: e.color }}>
-                  <h3 style={{ color: e.color }}>{e.name}</h3>
+                  <div className="stat-card-header">
+                    <h3 style={{ color: e.color }}>{e.name}</h3>
+                    <div className="stat-hero-metric" style={{ borderColor: `${e.color}55` }}>
+                      <span className="stat-hero-label">Total Score</span>
+                      <strong className="stat-hero-value">{st.totalPts}</strong>
+                    </div>
+                  </div>
+
+                  <div className="stat-highlight-grid">
+                    <div className="stat-highlight-card">
+                      <span className="label">Avg / Round</span>
+                      <strong className="value">{avgPts} pts</strong>
+                    </div>
+                    <div className="stat-highlight-card">
+                      <span className="label">Primiera Win Rate</span>
+                      <strong className="value">{formatPct(primieraWinRate)}</strong>
+                    </div>
+                    <div className="stat-highlight-card">
+                      <span className="label">Denari Control</span>
+                      <strong className="value">{formatPct(denariControlRate)}</strong>
+                    </div>
+                  </div>
 
                   <div className="stat-rows-list">
                     <div className="stat-row">
-                      <span className="label">Total Score</span>
-                      <strong className="value gold">{st.totalPts} pts</strong>
-                    </div>
-
-                    <div className="stat-row">
-                      <span className="label">Avg Score / Round</span>
-                      <strong className="value">{avgPts} pts</strong>
-                    </div>
-
-                    <div className="stat-row">
-                      <span className="label">🧹 Scopas (Sweeps)</span>
+                      <span className="label">🧹 Scopas</span>
                       <strong className="value">{st.scopas}</strong>
                     </div>
 
@@ -111,12 +158,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({
                     </div>
 
                     <div className="stat-row">
-                      <span className="label">📈 Primiera Win Rate</span>
-                      <strong className="value">{formatPct(primieraWinRate)}</strong>
-                    </div>
-
-                    <div className="stat-row">
-                      <span className="label">🪙 Settebellos (7♦)</span>
+                      <span className="label">🪙 Settebellos</span>
                       <strong className="value">{st.settebellos}</strong>
                     </div>
 
@@ -128,11 +170,6 @@ export const StatsModal: React.FC<StatsModalProps> = ({
                     <div className="stat-row">
                       <span className="label">🪙 Denari Majority</span>
                       <strong className="value">{st.denariCount} times</strong>
-                    </div>
-
-                    <div className="stat-row">
-                      <span className="label">📊 Denari Control %</span>
-                      <strong className="value">{formatPct(denariControlRate)}</strong>
                     </div>
                   </div>
                 </div>
