@@ -1,0 +1,741 @@
+import React, { useState } from 'react';
+import { X, Check, ArrowRight, ArrowLeft, Zap, Layers } from 'lucide-react';
+
+import type { GameSettings, Suit } from '../types/scopa';
+import { calculateRoundScores } from '../utils/scopaRules';
+
+import { PrimieraCalculator } from './PrimieraCalculator';
+import { soundManager } from '../utils/soundEffects';
+
+interface RoundWizardModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmitRound: (roundScores: Record<string, number>, breakdown: any, isOverride: boolean) => void;
+  entities: { id: string; name: string; color: string }[];
+  settings: GameSettings;
+  roundNumber: number;
+}
+
+export const RoundWizardModal: React.FC<RoundWizardModalProps> = ({
+  isOpen,
+  onClose,
+  onSubmitRound,
+  entities,
+  settings,
+  roundNumber,
+}) => {
+  const [entryMode, setEntryMode] = useState<'wizard' | 'override'>('wizard');
+  const [currentStep, setCurrentStep] = useState<number>(1);
+
+  // Wizard State
+  const [scopas, setScopas] = useState<Record<string, number>>(() =>
+    Object.fromEntries(entities.map((e) => [e.id, 0]))
+  );
+  const [settebelloId, setSettebelloId] = useState<string | null>(null);
+  const [denariCount, setDenariCount] = useState<Record<string, number>>(() =>
+    Object.fromEntries(entities.map((e) => [e.id, 0]))
+  );
+  const [cardsCount, setCardsCount] = useState<Record<string, number>>(() =>
+    Object.fromEntries(entities.map((e) => [e.id, 0]))
+  );
+  const [primieraSelections, setPrimieraSelections] = useState<Record<string, Record<Suit, number | null>>>(() =>
+    Object.fromEntries(
+      entities.map((e) => [e.id, { denari: null, coppe: null, spade: null, bastoni: null }])
+    )
+  );
+  const [napolaCount, setNapolaCount] = useState<Record<string, number>>(() =>
+    Object.fromEntries(entities.map((e) => [e.id, 0]))
+  );
+  const [reBelloId, setReBelloId] = useState<string | null>(null);
+
+  // Manual Override State
+  const [overrideScores, setOverrideScores] = useState<Record<string, number>>(() =>
+    Object.fromEntries(entities.map((e) => [e.id, 0]))
+  );
+
+  if (!isOpen) return null;
+
+  // Calculate total steps
+  let totalSteps = 5; // Scopas, Settebello, Denari, Cards, Primiera
+  if (settings.variantNapola) totalSteps++;
+  if (settings.variantReBello) totalSteps++;
+
+  // Step 1: Increments / Decrements
+  const handleScopaChange = (id: string, delta: number) => {
+    const current = scopas[id] || 0;
+    const nextVal = Math.max(0, current + delta);
+    setScopas({ ...scopas, [id]: nextVal });
+    if (delta > 0) soundManager.playScopaSweep();
+    else soundManager.playClick();
+  };
+
+  const handleDenariChange = (id: string, val: number) => {
+    soundManager.playCardSelect();
+    const clamped = Math.max(0, Math.min(10, val));
+    setDenariCount((prev) => ({ ...prev, [id]: clamped }));
+  };
+
+  const handleCardsChange = (id: string, val: number) => {
+    soundManager.playCardSelect();
+    const clamped = Math.max(0, Math.min(40, val));
+    setCardsCount((prev) => ({ ...prev, [id]: clamped }));
+  };
+
+
+  const handleNapolaChange = (id: string, val: number) => {
+    soundManager.playClick();
+    setNapolaCount({ ...napolaCount, [id]: val });
+  };
+
+
+  // Compute calculated preview
+  const calculatedBreakdown = calculateRoundScores(
+    entities,
+    {
+      scopas,
+      settebelloId,
+      denariCount,
+      cardsCount,
+      primieraSelections,
+      napolaCount: settings.variantNapola ? napolaCount : undefined,
+      reBelloId: settings.variantReBello ? reBelloId : undefined,
+    },
+    settings
+  );
+
+  const handleWizardSubmit = () => {
+    soundManager.playRoundComplete();
+    const finalScores: Record<string, number> = {};
+    for (const e of entities) {
+      finalScores[e.id] = calculatedBreakdown[e.id]?.total || 0;
+    }
+    onSubmitRound(finalScores, calculatedBreakdown, false);
+  };
+
+  const handleOverrideSubmit = () => {
+    soundManager.playRoundComplete();
+    const breakdown: Record<string, any> = {};
+    for (const e of entities) {
+      breakdown[e.id] = {
+        carte: 0,
+        denari: 0,
+        settebello: 0,
+        primiera: 0,
+        scopas: 0,
+        total: overrideScores[e.id] || 0,
+      };
+    }
+    onSubmitRound(overrideScores, breakdown, true);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-container wizard-modal" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="modal-header">
+          <div className="modal-title">
+            <span className="modal-badge">Round {roundNumber}</span>
+            <h2>Enter Round Score</h2>
+          </div>
+          <button className="close-btn" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Entry Mode Toggle Tabs */}
+        <div className="wizard-mode-tabs">
+          <button
+            className={`mode-tab-btn ${entryMode === 'wizard' ? 'active' : ''}`}
+            onClick={() => {
+              soundManager.playClick();
+              setEntryMode('wizard');
+            }}
+          >
+            <Layers size={16} /> Guided Wizard
+          </button>
+          <button
+            className={`mode-tab-btn ${entryMode === 'override' ? 'active' : ''}`}
+            onClick={() => {
+              soundManager.playClick();
+              setEntryMode('override');
+            }}
+          >
+            <Zap size={16} /> Quick Manual Override
+          </button>
+        </div>
+
+        {/* GUIDED WIZARD MODE */}
+        {entryMode === 'wizard' && (
+          <div className="wizard-body">
+            {/* Step Progress Bar */}
+            <div className="step-progress-bar">
+              <div
+                className="step-progress-fill"
+                style={{ width: `${(currentStep / totalSteps) * 100}%` }}
+              />
+              <span className="step-count-text">Step {currentStep} of {totalSteps}</span>
+            </div>
+
+            <div className="wizard-step-content custom-scrollbar">
+              {/* STEP 1: SCOPAS */}
+              {currentStep === 1 && (
+                <div className="step-panel fade-in">
+                  <h3>🧹 Step 1: Scopas (Sweeps)</h3>
+                  <p className="step-desc">Enter the number of table sweeps scored by each player/team during the round.</p>
+                  <div className="stepper-list">
+                    {entities.map((e) => (
+                      <div key={e.id} className="stepper-row" style={{ borderLeftColor: e.color }}>
+                        <span className="entity-label">{e.name}</span>
+                        <div className="counter-controls">
+                          <button
+                            type="button"
+                            className="counter-btn"
+                            onClick={() => handleScopaChange(e.id, -1)}
+                          >
+                            -
+                          </button>
+                          <span className="counter-val">{scopas[e.id] || 0}</span>
+                          <button
+                            type="button"
+                            className="counter-btn highlight"
+                            onClick={() => handleScopaChange(e.id, 1)}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: SETTEBELLO */}
+              {currentStep === 2 && (
+                <div className="step-panel fade-in">
+                  <h3>🪙 Step 2: Settebello (7 of Coins 7♦)</h3>
+                  <p className="step-desc">Who captured the 7 of Coins card?</p>
+                  <div className="radio-options-grid">
+                    {entities.map((e) => (
+                      <button
+                        key={e.id}
+                        type="button"
+                        className={`radio-card ${settebelloId === e.id ? 'selected' : ''}`}
+                        style={settebelloId === e.id ? { borderColor: e.color, backgroundColor: `${e.color}15` } : {}}
+                        onClick={() => {
+                          soundManager.playCardSelect();
+                          setSettebelloId(e.id);
+                        }}
+                      >
+                        <span className="radio-icon">7♦</span>
+                        <span className="radio-name">{e.name}</span>
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={`radio-card ${settebelloId === null ? 'selected' : ''}`}
+                      onClick={() => {
+                        soundManager.playClick();
+                        setSettebelloId(null);
+                      }}
+                    >
+                      <span className="radio-icon">❓</span>
+                      <span className="radio-name">None / Unsure</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: DENARI COUNT */}
+              {currentStep === 3 && (() => {
+                const totalDenariSum = entities.reduce((acc, e) => acc + (denariCount[e.id] || 0), 0);
+                return (
+                  <div className="step-panel fade-in">
+                    <div className="step-header-with-tracker">
+                      <div>
+                        <h3>🪙 Step 3: Denari (Coins Count)</h3>
+                        <p className="step-desc">Enter total Coin cards captured per player (Total 10 cards; majority &gt; 5 gets 1 point).</p>
+                      </div>
+
+                      <div className="total-tally-badge">
+                        <span>Total Tracked: <strong>{totalDenariSum} / 10 🪙</strong></span>
+                        {totalDenariSum > 10 && <span className="warning-pill">⚠️ Exceeds 10</span>}
+                      </div>
+                    </div>
+
+                    {/* Optional Auto-fill helper if 2 players and remaining coins > 0 */}
+                    {entities.length === 2 && totalDenariSum < 10 && (
+                      <div className="autofill-helper-bar">
+                        <span>Unassigned Coins: <strong>{10 - totalDenariSum} 🪙</strong></span>
+                        {entities.map((e) => {
+                          const remaining = 10 - (entities.find((o) => o.id !== e.id) ? denariCount[entities.find((o) => o.id !== e.id)!.id] || 0 : 0);
+                          if (denariCount[e.id] === 0 || totalDenariSum < 10) {
+                            return (
+                              <button
+                                key={e.id}
+                                type="button"
+                                className="btn-autofill-sm"
+                                onClick={() => {
+                                  soundManager.playCardSelect();
+                                  setDenariCount({ ...denariCount, [e.id]: Math.max(0, Math.min(10, remaining)) });
+                                }}
+                              >
+                                Assign remaining ({10 - totalDenariSum}) 🪙 to {e.name}
+                              </button>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+                    )}
+
+                    <div className="modern-count-cards-list">
+                      {entities.map((e) => {
+                        const count = denariCount[e.id] ?? 0;
+                        const hasMajority = count > 5;
+                        return (
+                          <div key={e.id} className="modern-count-card" style={{ borderLeftColor: e.color }}>
+                            <div className="count-card-top">
+                              <span className="count-entity-name" style={{ color: e.color }}>{e.name}</span>
+                              {hasMajority && (
+                                <span className="majority-badge gold-glow">
+                                  👑 Denari Majority (1 pt)
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="count-card-main">
+                              <button
+                                type="button"
+                                className="stepper-btn-large"
+                                onClick={() => handleDenariChange(e.id, count - 1)}
+                              >
+                                -
+                              </button>
+
+                              <div className="count-value-display">
+                                <span className="count-symbol">🪙</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="10"
+                                  value={count}
+                                  onChange={(ev) => handleDenariChange(e.id, parseInt(ev.target.value) || 0)}
+                                  className="count-num-input"
+                                />
+                                <span className="count-max">/ 10</span>
+                              </div>
+
+                              <button
+                                type="button"
+                                className="stepper-btn-large highlight"
+                                onClick={() => handleDenariChange(e.id, count + 1)}
+                              >
+                                +
+                              </button>
+                            </div>
+
+                            {/* Fast Pill Selector 0 to 10 */}
+                            <div className="pill-chips-scroll custom-scrollbar">
+                              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((val) => (
+                                <button
+                                  key={val}
+                                  type="button"
+                                  className={`pill-chip ${count === val ? 'selected' : ''}`}
+                                  onClick={() => handleDenariChange(e.id, val)}
+                                >
+                                  {val}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* STEP 4: CARDS COUNT */}
+              {currentStep === 4 && (() => {
+                const totalCardsSum = entities.reduce((acc, e) => acc + (cardsCount[e.id] || 0), 0);
+                return (
+                  <div className="step-panel fade-in">
+                    <div className="step-header-with-tracker">
+                      <div>
+                        <h3>🃏 Step 4: Total Cards Count</h3>
+                        <p className="step-desc">Enter total cards captured per player (Total 40 cards; majority &gt; 20 gets 1 point).</p>
+                      </div>
+
+                      <div className="total-tally-badge">
+                        <span>Total Tracked: <strong>{totalCardsSum} / 40 🃏</strong></span>
+                        {totalCardsSum > 40 && <span className="warning-pill">⚠️ Exceeds 40</span>}
+                      </div>
+                    </div>
+
+                    {/* Optional Auto-fill helper */}
+                    {entities.length === 2 && totalCardsSum < 40 && (
+                      <div className="autofill-helper-bar">
+                        <span>Unassigned Cards: <strong>{40 - totalCardsSum} 🃏</strong></span>
+                        {entities.map((e) => {
+                          const remaining = 40 - (entities.find((o) => o.id !== e.id) ? cardsCount[entities.find((o) => o.id !== e.id)!.id] || 0 : 0);
+                          if (cardsCount[e.id] === 0 || totalCardsSum < 40) {
+                            return (
+                              <button
+                                key={e.id}
+                                type="button"
+                                className="btn-autofill-sm"
+                                onClick={() => {
+                                  soundManager.playCardSelect();
+                                  setCardsCount({ ...cardsCount, [e.id]: Math.max(0, Math.min(40, remaining)) });
+                                }}
+                              >
+                                Assign remaining ({40 - totalCardsSum}) 🃏 to {e.name}
+                              </button>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+                    )}
+
+                    <div className="modern-count-cards-list">
+                      {entities.map((e) => {
+                        const count = cardsCount[e.id] ?? 0;
+                        const hasMajority = count > 20;
+                        return (
+                          <div key={e.id} className="modern-count-card" style={{ borderLeftColor: e.color }}>
+                            <div className="count-card-top">
+                              <span className="count-entity-name" style={{ color: e.color }}>{e.name}</span>
+                              {hasMajority && (
+                                <span className="majority-badge gold-glow">
+                                  👑 Cards Majority (1 pt)
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="count-card-main">
+                              <button
+                                type="button"
+                                className="stepper-btn-sm"
+                                onClick={() => handleCardsChange(e.id, count - 5)}
+                              >
+                                -5
+                              </button>
+                              <button
+                                type="button"
+                                className="stepper-btn-large"
+                                onClick={() => handleCardsChange(e.id, count - 1)}
+                              >
+                                -1
+                              </button>
+
+                              <div className="count-value-display">
+                                <span className="count-symbol">🃏</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="40"
+                                  value={count}
+                                  onChange={(ev) => handleCardsChange(e.id, parseInt(ev.target.value) || 0)}
+                                  className="count-num-input"
+                                />
+                                <span className="count-max">/ 40</span>
+                              </div>
+
+                              <button
+                                type="button"
+                                className="stepper-btn-large highlight"
+                                onClick={() => handleCardsChange(e.id, count + 1)}
+                              >
+                                +1
+                              </button>
+                              <button
+                                type="button"
+                                className="stepper-btn-sm highlight"
+                                onClick={() => handleCardsChange(e.id, count + 5)}
+                              >
+                                +5
+                              </button>
+                            </div>
+
+                            {/* Quick Card Presets */}
+                            <div className="pill-chips-scroll custom-scrollbar">
+                              {[15, 18, 20, 21, 22, 25, 28, 30].map((val) => (
+                                <button
+                                  key={val}
+                                  type="button"
+                                  className={`pill-chip ${count === val ? 'selected' : ''}`}
+                                  onClick={() => handleCardsChange(e.id, val)}
+                                >
+                                  {val}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+
+
+              {/* STEP 5: PRIMIERA CALCULATOR */}
+              {currentStep === 5 && (
+                <div className="step-panel fade-in">
+                  <PrimieraCalculator
+                    entities={entities}
+                    selections={primieraSelections}
+                    onChange={setPrimieraSelections}
+                  />
+                </div>
+              )}
+
+              {/* STEP 6: NAPOLA (If Variant Enabled) */}
+              {settings.variantNapola && currentStep === (settings.variantReBello ? totalSteps - 1 : totalSteps) && (
+                <div className="step-panel fade-in">
+                  <h3>👑 Step 6: Il Napola Sequence</h3>
+                  <p className="step-desc">Enter length of consecutive Coin sequence starting from Ace, 2, 3 (e.g. 3 to 7 pts).</p>
+                  <div className="stepper-list">
+                    {entities.map((e) => (
+                      <div key={e.id} className="stepper-row" style={{ borderLeftColor: e.color }}>
+                        <span className="entity-label">{e.name}</span>
+                        <div className="counter-controls">
+                          <select
+                            value={napolaCount[e.id] || 0}
+                            onChange={(ev) => handleNapolaChange(e.id, parseInt(ev.target.value) || 0)}
+                            className="select-dropdown"
+                          >
+                            <option value={0}>No Napola (0 pts)</option>
+                            <option value={3}>Ace, 2, 3 (3 pts)</option>
+                            <option value={4}>Ace, 2, 3, 4 (4 pts)</option>
+                            <option value={5}>Ace, 2, 3, 4, 5 (5 pts)</option>
+                            <option value={6}>Ace, 2, 3, 4, 5, 6 (6 pts)</option>
+                            <option value={7}>Ace to 7 of Coins (7 pts)</option>
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 7: RE BELLO (If Variant Enabled) */}
+              {settings.variantReBello && currentStep === totalSteps && (
+                <div className="step-panel fade-in">
+                  <h3>🤴 Step 7: Re Bello (King of Coins 🪙)</h3>
+                  <p className="step-desc">Who captured the King of Denari?</p>
+                  <div className="radio-options-grid">
+                    {entities.map((e) => (
+                      <button
+                        key={e.id}
+                        type="button"
+                        className={`radio-card ${reBelloId === e.id ? 'selected' : ''}`}
+                        style={reBelloId === e.id ? { borderColor: e.color, backgroundColor: `${e.color}15` } : {}}
+                        onClick={() => {
+                          soundManager.playCardSelect();
+                          setReBelloId(e.id);
+                        }}
+                      >
+                        <span className="radio-icon">🤴</span>
+                        <span className="radio-name">{e.name}</span>
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={`radio-card ${reBelloId === null ? 'selected' : ''}`}
+                      onClick={() => {
+                        soundManager.playClick();
+                        setReBelloId(null);
+                      }}
+                    >
+                      <span className="radio-icon">❓</span>
+                      <span className="radio-name">None / Unsure</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Calculated Summary Preview Bar */}
+              <div className="summary-preview-box">
+                <h4>Calculated Round Scores Preview:</h4>
+                <div className="preview-scores-row">
+                  {entities.map((e) => (
+                    <div key={e.id} className="preview-score-pill" style={{ backgroundColor: `${e.color}25`, borderColor: e.color }}>
+                      <span className="p-name">{e.name}:</span>
+                      <span className="p-pts">+{calculatedBreakdown[e.id]?.total || 0} pts</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Navigation Footer */}
+            <div className="wizard-footer">
+              {currentStep > 1 ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    soundManager.playClick();
+                    setCurrentStep((prev) => prev - 1);
+                  }}
+                >
+                  <ArrowLeft size={16} /> Back
+                </button>
+              ) : (
+                <div />
+              )}
+
+              {currentStep < totalSteps ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    soundManager.playClick();
+                    setCurrentStep((prev) => prev + 1);
+                  }}
+                >
+                  Next <ArrowRight size={16} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-success submit-round-btn"
+                  onClick={handleWizardSubmit}
+                >
+                  <Check size={18} /> Confirm Round Scores
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* QUICK MANUAL OVERRIDE MODE */}
+        {entryMode === 'override' && (
+          <div className="override-body fade-in">
+            <div className="override-intro-card">
+              <div className="intro-icon-box">
+                <Zap size={22} className="icon-gold" />
+              </div>
+              <div className="intro-text">
+                <h3>Quick Manual Point Override</h3>
+                <p>Directly enter end-of-round points calculated physically at the table.</p>
+              </div>
+            </div>
+
+            <div className="override-cards-grid custom-scrollbar">
+              {entities.map((e) => {
+                const currentScore = overrideScores[e.id] ?? 0;
+                return (
+                  <div key={e.id} className="override-player-card" style={{ borderLeftColor: e.color }}>
+                    <div className="override-card-header">
+                      <div className="player-avatar-sm" style={{ backgroundColor: e.color }}>
+                        {e.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="override-player-name">{e.name}</span>
+                    </div>
+
+                    <div className="override-score-stepper-box">
+                      <div className="stepper-main-controls">
+                        <button
+                          type="button"
+                          className="stepper-btn-sm"
+                          onClick={() => {
+                            soundManager.playClick();
+                            setOverrideScores({ ...overrideScores, [e.id]: Math.max(0, currentScore - 5) });
+                          }}
+                        >
+                          -5
+                        </button>
+                        <button
+                          type="button"
+                          className="stepper-btn-sm"
+                          onClick={() => {
+                            soundManager.playClick();
+                            setOverrideScores({ ...overrideScores, [e.id]: Math.max(0, currentScore - 1) });
+                          }}
+                        >
+                          -1
+                        </button>
+
+                        <div className="override-display-input">
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            value={currentScore}
+                            onChange={(ev) => {
+                              const val = Math.max(0, parseInt(ev.target.value) || 0);
+                              setOverrideScores({ ...overrideScores, [e.id]: val });
+                            }}
+                            className="score-val-input"
+                          />
+                          <span className="score-val-unit">pts</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="stepper-btn-sm highlight"
+                          onClick={() => {
+                            soundManager.playCardSelect();
+                            setOverrideScores({ ...overrideScores, [e.id]: currentScore + 1 });
+                          }}
+                        >
+                          +1
+                        </button>
+                        <button
+                          type="button"
+                          className="stepper-btn-sm highlight"
+                          onClick={() => {
+                            soundManager.playCardSelect();
+                            setOverrideScores({ ...overrideScores, [e.id]: currentScore + 5 });
+                          }}
+                        >
+                          +5
+                        </button>
+                      </div>
+
+                      {/* Quick Score Presets */}
+                      <div className="quick-presets-row">
+                        <span className="preset-label">Quick Set:</span>
+                        {[0, 1, 2, 3, 4, 5, 6].map((pVal) => (
+                          <button
+                            key={pVal}
+                            type="button"
+                            className={`preset-pill ${currentScore === pVal ? 'active' : ''}`}
+                            onClick={() => {
+                              soundManager.playCardSelect();
+                              setOverrideScores({ ...overrideScores, [e.id]: pVal });
+                            }}
+                          >
+                            +{pVal}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-success primary-cta-btn"
+                onClick={handleOverrideSubmit}
+              >
+                <Check size={18} /> Confirm Manual Scores
+              </button>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+};
