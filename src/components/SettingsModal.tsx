@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Users, Award, Check, UserPlus, Trash2, Bookmark, Sparkles, Sliders } from 'lucide-react';
+import { X, Users, Award, Check, UserPlus, Trash2, Bookmark, Sparkles, Sliders, Shuffle, UserCheck } from 'lucide-react';
 
 import type { GameMode, TargetScore, GameSettings, Player } from '../types/scopa';
 import { soundManager } from '../utils/soundEffects';
@@ -31,6 +31,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [variantNapola, setVariantNapola] = useState<boolean>(settings.variantNapola);
   const [variantReBello, setVariantReBello] = useState<boolean>(settings.variantReBello);
   const [tempPlayers, setTempPlayers] = useState<Player[]>(players);
+  const [dealerSetupMode, setDealerSetupMode] = useState<'random' | 'manual'>(
+    settings.initialDealerMode ?? 'random'
+  );
+  const [manualDealerId, setManualDealerId] = useState<string>(() => {
+    const bySettings = players[settings.dealerIndex]?.id;
+    return bySettings || players[0]?.id || 'p1';
+  });
   
   // Saved Roster State
   const [roster, setRoster] = useState<string[]>(() => {
@@ -52,24 +59,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     soundManager.playClick();
     setGameMode(mode);
 
+    let nextPlayers: Player[] = tempPlayers;
     if (mode === '1v1') {
-      setTempPlayers([
+      nextPlayers = [
         { id: 'p1', name: tempPlayers[0]?.name || 'Player 1', color: '#e74c3c', team: null },
         { id: 'p2', name: tempPlayers[1]?.name || 'Player 2', color: '#3498db', team: null },
-      ]);
+      ];
     } else if (mode === '2v2') {
-      setTempPlayers([
+      nextPlayers = [
         { id: 'p1', name: tempPlayers[0]?.name || 'Player 1', color: '#e74c3c', team: 'A' },
         { id: 'p2', name: tempPlayers[1]?.name || 'Player 2', color: '#e74c3c', team: 'A' },
         { id: 'p3', name: tempPlayers[2]?.name || 'Player 3', color: '#3498db', team: 'B' },
         { id: 'p4', name: tempPlayers[3]?.name || 'Player 4', color: '#3498db', team: 'B' },
-      ]);
+      ];
     } else if (mode === '3p') {
-      setTempPlayers([
+      nextPlayers = [
         { id: 'p1', name: tempPlayers[0]?.name || 'Player 1', color: '#e74c3c', team: null },
         { id: 'p2', name: tempPlayers[1]?.name || 'Player 2', color: '#3498db', team: null },
         { id: 'p3', name: tempPlayers[2]?.name || 'Player 3', color: '#2ecc71', team: null },
-      ]);
+      ];
+    }
+
+    setTempPlayers(nextPlayers);
+    if (!nextPlayers.some((p) => p.id === manualDealerId)) {
+      setManualDealerId(nextPlayers[0]?.id || 'p1');
     }
   };
 
@@ -124,6 +137,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
     }
 
+    const playerCount = Math.max(1, tempPlayers.length);
+    const currentDealerIdx = ((settings.dealerIndex % playerCount) + playerCount) % playerCount;
+
+    let resolvedDealerIndex = Math.max(0, tempPlayers.findIndex((p) => p.id === manualDealerId));
+    if (dealerSetupMode === 'random') {
+      resolvedDealerIndex = Math.floor(Math.random() * playerCount);
+
+      // Make random selection visibly meaningful by avoiding the current dealer when possible.
+      if (playerCount > 1 && resolvedDealerIndex === currentDealerIdx) {
+        resolvedDealerIndex = (resolvedDealerIndex + 1 + Math.floor(Math.random() * (playerCount - 1))) % playerCount;
+      }
+    }
+
     onSaveSettings(
       {
         ...settings,
@@ -131,6 +157,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         targetScore: finalTargetScore,
         variantNapola,
         variantReBello,
+        dealerIndex: resolvedDealerIndex,
+        initialDealerMode: dealerSetupMode,
       },
       tempPlayers,
       roster
@@ -245,7 +273,67 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* SECTION 3: RULE VARIANTS */}
+          {/* SECTION 3: INITIAL DEALER */}
+          <div className="modern-section">
+            <div className="section-title">
+              <Shuffle size={18} className="icon-gold" />
+              <h3>Initial Dealer</h3>
+            </div>
+
+            <div className="dealer-setup-grid">
+              <button
+                type="button"
+                className={`dealer-setup-card ${dealerSetupMode === 'random' ? 'selected' : ''}`}
+                onClick={() => {
+                  soundManager.playClick();
+                  setDealerSetupMode('random');
+                }}
+              >
+                <div className="dealer-setup-title">
+                  <Shuffle size={16} />
+                  <span>Random Dealer</span>
+                </div>
+                <p>Randomly choose who deals first when settings are saved.</p>
+              </button>
+
+              <button
+                type="button"
+                className={`dealer-setup-card ${dealerSetupMode === 'manual' ? 'selected' : ''}`}
+                onClick={() => {
+                  soundManager.playClick();
+                  setDealerSetupMode('manual');
+                }}
+              >
+                <div className="dealer-setup-title">
+                  <UserCheck size={16} />
+                  <span>Manual Dealer</span>
+                </div>
+                <p>Pick the specific player who deals first.</p>
+              </button>
+            </div>
+
+            {dealerSetupMode === 'manual' && (
+              <div className="dealer-picker-row fade-in">
+                {tempPlayers.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={`dealer-player-pill ${manualDealerId === p.id ? 'active' : ''}`}
+                    style={manualDealerId === p.id ? { borderColor: p.color, backgroundColor: `${p.color}22` } : {}}
+                    onClick={() => {
+                      soundManager.playCardSelect();
+                      setManualDealerId(p.id);
+                    }}
+                  >
+                    <span className="dealer-player-dot" style={{ backgroundColor: p.color }} />
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 4: RULE VARIANTS */}
           <div className="modern-section">
             <div className="section-title">
               <Sparkles size={18} className="icon-gold" />
@@ -299,7 +387,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* SECTION 4: PLAYER ROSTER & SAVED NAMES */}
+          {/* SECTION 5: PLAYER ROSTER & SAVED NAMES */}
           <div className="modern-section">
             <div className="section-title-with-action">
               <div className="section-title">

@@ -18,6 +18,8 @@ export const StatsModal: React.FC<StatsModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const formatPct = (value: number): string => `${Math.round(value)}%`;
+
   // Compute Statistics
   const stats: Record<
     string,
@@ -80,6 +82,8 @@ export const StatsModal: React.FC<StatsModalProps> = ({
             {entities.map((e) => {
               const st = stats[e.id] || { totalPts: 0, scopas: 0, primieras: 0, settebellos: 0, carteCount: 0, denariCount: 0 };
               const avgPts = rounds.length > 0 ? (st.totalPts / rounds.length).toFixed(1) : '0';
+              const primieraWinRate = rounds.length > 0 ? (st.primieras / rounds.length) * 100 : 0;
+              const denariControlRate = rounds.length > 0 ? (st.denariCount / rounds.length) * 100 : 0;
 
               return (
                 <div key={e.id} className="stat-card" style={{ borderTopColor: e.color }}>
@@ -107,6 +111,11 @@ export const StatsModal: React.FC<StatsModalProps> = ({
                     </div>
 
                     <div className="stat-row">
+                      <span className="label">📈 Primiera Win Rate</span>
+                      <strong className="value">{formatPct(primieraWinRate)}</strong>
+                    </div>
+
+                    <div className="stat-row">
                       <span className="label">🪙 Settebellos (7♦)</span>
                       <strong className="value">{st.settebellos}</strong>
                     </div>
@@ -119,6 +128,11 @@ export const StatsModal: React.FC<StatsModalProps> = ({
                     <div className="stat-row">
                       <span className="label">🪙 Denari Majority</span>
                       <strong className="value">{st.denariCount} times</strong>
+                    </div>
+
+                    <div className="stat-row">
+                      <span className="label">📊 Denari Control %</span>
+                      <strong className="value">{formatPct(denariControlRate)}</strong>
                     </div>
                   </div>
                 </div>

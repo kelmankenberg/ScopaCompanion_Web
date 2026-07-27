@@ -155,6 +155,11 @@ body {
   color: #f39c12;
 }
 
+.dealer-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
 .dealer-name {
   color: var(--color-text-main);
 }
@@ -477,16 +482,6 @@ body {
   box-shadow: 0 2px 8px rgba(241, 196, 15, 0.4);
 }
 
-.dealer-pill {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  padding: 2px 8px;
-  background: rgba(255, 255, 255, 0.1);
-  font-size: 0.75rem;
-  border-radius: 12px;
-}
-
 .card-player-header {
   display: flex;
   align-items: center;
@@ -511,6 +506,26 @@ body {
 .player-name {
   font-size: 1.15rem;
   font-weight: 700;
+}
+
+.player-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.player-dealer-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(241, 196, 15, 0.38);
+  background: rgba(241, 196, 15, 0.14);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  line-height: 1;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.28);
 }
 
 .team-subtext {
@@ -1627,6 +1642,81 @@ body {
 .custom-score-input::placeholder {
   color: var(--color-text-muted);
   opacity: 1;
+}
+
+.dealer-setup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.dealer-setup-card {
+  text-align: left;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 14px;
+  color: var(--color-text-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dealer-setup-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dealer-setup-card.selected {
+  border-color: var(--accent-gold);
+  background: rgba(241, 196, 15, 0.1);
+}
+
+.dealer-setup-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.dealer-setup-card p {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.35;
+}
+
+.dealer-picker-row {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dealer-player-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dealer-player-pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dealer-player-pill.active {
+  border-color: var(--accent-gold);
+  background: rgba(241, 196, 15, 0.12);
+}
+
+.dealer-player-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
 }
 
 .pts-suffix {

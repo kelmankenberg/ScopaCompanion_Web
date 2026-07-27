@@ -24,6 +24,7 @@ const defaultSettings: GameSettings = {
   variantReBello: false,
   soundEnabled: true,
   dealerIndex: 0,
+  initialDealerMode: 'random',
 };
 
 const defaultPlayers: Player[] = [
@@ -31,11 +32,26 @@ const defaultPlayers: Player[] = [
   { id: 'p2', name: 'Player 2', color: '#3498db', team: null },
 ];
 
+const resolveInitialDealerIndex = (
+  playerList: Player[],
+  dealerMode: 'random' | 'manual' | undefined,
+  manualDealerIndex: number | undefined
+): number => {
+  const playerCount = Math.max(1, playerList.length);
+  if (dealerMode === 'manual') {
+    return ((manualDealerIndex ?? 0) % playerCount + playerCount) % playerCount;
+  }
+
+  return Math.floor(Math.random() * playerCount);
+};
+
 export const App: React.FC = () => {
   const [settings, setSettings] = useState<GameSettings>(defaultSettings);
   const [players, setPlayers] = useState<Player[]>(defaultPlayers);
   const [rounds, setRounds] = useState<RoundRecord[]>([]);
-  const [currentDealerIndex, setCurrentDealerIndex] = useState<number>(0);
+  const [currentDealerIndex, setCurrentDealerIndex] = useState<number>(() =>
+    resolveInitialDealerIndex(defaultPlayers, defaultSettings.initialDealerMode, defaultSettings.dealerIndex)
+  );
 
   // Modals visibility
   const [isRulesOpen, setIsRulesOpen] = useState<boolean>(false);
@@ -86,7 +102,9 @@ export const App: React.FC = () => {
   };
 
   const applyPersistedState = (state: GameState) => {
-    if (state.settings) setSettings(state.settings);
+    if (state.settings) {
+      setSettings({ ...defaultSettings, ...state.settings });
+    }
     if (state.players) setPlayers(state.players);
     if (state.rounds) setRounds(state.rounds);
     if (state.savedPlayers) setSavedPlayers(state.savedPlayers);
@@ -356,7 +374,16 @@ export const App: React.FC = () => {
   const handleNewGame = () => {
     if (window.confirm('Are you sure you want to reset and start a new game?')) {
       setRounds([]);
-      setCurrentDealerIndex(0);
+      const nextDealerIndex = resolveInitialDealerIndex(
+        players,
+        settings.initialDealerMode,
+        settings.dealerIndex
+      );
+      setCurrentDealerIndex(nextDealerIndex);
+      setSettings((prev) => ({
+        ...prev,
+        dealerIndex: settings.initialDealerMode === 'manual' ? nextDealerIndex : prev.dealerIndex,
+      }));
       localStorage.removeItem(LOCAL_STORAGE_KEY);
     }
   };
@@ -368,6 +395,7 @@ export const App: React.FC = () => {
   ) => {
     setSettings(newSettings);
     setPlayers(newPlayers);
+    setCurrentDealerIndex(newSettings.dealerIndex % Math.max(1, newPlayers.length));
     setSavedPlayers(newSavedPlayers);
     soundManager.setEnabled(newSettings.soundEnabled);
   };

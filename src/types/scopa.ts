@@ -18,6 +18,7 @@ export interface GameSettings {
   variantReBello: boolean;
   soundEnabled: boolean;
   dealerIndex: number;
+  initialDealerMode?: 'random' | 'manual';
 }
 
 export interface CardDef {

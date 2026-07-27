@@ -68,18 +68,19 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
                 </div>
               )}
 
-              {entity.isDealer && (
-                <div className="dealer-pill" title="Dealer this round">
-                  🃏 Dealer
-                </div>
-              )}
-
               <div className="card-player-header">
                 <div className="player-avatar" style={{ backgroundColor: entity.color }}>
                   {entity.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="player-info">
-                  <h3 className="player-name">{entity.name}</h3>
+                  <div className="player-name-row">
+                    <h3 className="player-name">{entity.name}</h3>
+                    {entity.isDealer && (
+                      <span className="player-dealer-icon" title="Dealer this round" aria-label="Dealer this round">
+                        🃏
+                      </span>
+                    )}
+                  </div>
                   {entity.teamMembers && entity.teamMembers.length > 0 && (
                     <span className="team-subtext">{entity.teamMembers.join(' & ')}</span>
                   )}
