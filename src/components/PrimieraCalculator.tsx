@@ -14,6 +14,13 @@ export const PrimieraCalculator: React.FC<PrimieraCalculatorProps> = ({
   selections,
   onChange,
 }) => {
+  const suitTooltips: Record<Suit, string> = {
+    denari: 'Denari (Coins): golden coin suit used for Denari scoring and Primiera qualification.',
+    coppe: 'Coppe (Cups): chalice suit; you need at least one Coppe card to qualify for Primiera.',
+    spade: 'Spade (Swords): blade suit; counts toward the 4-suit Primiera requirement.',
+    bastoni: 'Bastoni (Clubs): staff suit; required alongside the other suits for Primiera.',
+  };
+
   const handleCardSelect = (entityId: string, suit: Suit, cardValue: number | null) => {
     soundManager.playCardSelect();
     const updated = {
@@ -70,7 +77,15 @@ export const PrimieraCalculator: React.FC<PrimieraCalculatorProps> = ({
                     <div key={suit} className="suit-row">
                       <div className="suit-label" style={{ color: sInfo.color }}>
                         <span className="suit-icon">{sInfo.icon}</span>
-                        <span className="suit-name">{sInfo.name.split(' ')[0]}</span>
+                        <span
+                          className="suit-name tooltip-anchor"
+                          tabIndex={0}
+                          title={suitTooltips[suit]}
+                          aria-label={suitTooltips[suit]}
+                        >
+                          {sInfo.name.split(' ')[0]}
+                          <span className="inline-tooltip" role="tooltip">{suitTooltips[suit]}</span>
+                        </span>
                         <span className="suit-pts">{currentPts > 0 ? `(${currentPts}pts)` : ''}</span>
                       </div>
 

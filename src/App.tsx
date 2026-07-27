@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { GameState, GameSettings, Player, RoundRecord } from './types/scopa';
 
 import { Header } from './components/Header';
@@ -10,8 +10,10 @@ import { SettingsModal } from './components/SettingsModal';
 import { StatsModal } from './components/StatsModal';
 import { VictoryModal } from './components/VictoryModal';
 import { soundManager } from './utils/soundEffects';
+import { isCloudSyncConfigured, loadCloudGameState, saveCloudGameState } from './utils/cloudSync';
 
 const LOCAL_STORAGE_KEY = 'scopa_companion_game_v1';
+type CloudSyncStatus = 'disabled' | 'connecting' | 'syncing' | 'synced' | 'error';
 
 const defaultSettings: GameSettings = {
   gameMode: '1v1',
@@ -40,32 +42,125 @@ export const App: React.FC = () => {
   const [isStatsOpen, setIsStatsOpen] = useState<boolean>(false);
 
   const [savedPlayers, setSavedPlayers] = useState<string[]>([]);
+  const [cloudUid, setCloudUid] = useState<string | null>(null);
+  const [isHydrated, setIsHydrated] = useState<boolean>(false);
+  const saveDebounceRef = useRef<number | null>(null);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>(
+    isCloudSyncConfigured() ? 'connecting' : 'disabled'
+  );
+  const [cloudSyncError, setCloudSyncError] = useState<string | null>(null);
+  const [cloudLastSyncedAt, setCloudLastSyncedAt] = useState<number | null>(null);
+
+  const getErrorMessage = (err: unknown): string => {
+    if (err instanceof Error && err.message) return err.message;
+    if (typeof err === 'string' && err) return err;
+    if (typeof err === 'object' && err !== null) {
+      const maybeError = err as {
+        message?: string;
+        error_description?: string;
+        details?: string;
+        hint?: string;
+        code?: string;
+        status?: number;
+      };
+
+      const parts: string[] = [];
+      const msg = maybeError.message || maybeError.error_description;
+      if (msg) parts.push(msg);
+      if (maybeError.details) parts.push(maybeError.details);
+      if (maybeError.hint) parts.push(`Hint: ${maybeError.hint}`);
+      if (maybeError.code) parts.push(`Code: ${maybeError.code}`);
+      if (maybeError.status) parts.push(`Status: ${String(maybeError.status)}`);
+
+      if (parts.length > 0) {
+        return parts.join(' | ');
+      }
+    }
+    return 'Unknown sync error';
+  };
+
+  const getStateTimestamp = (state: Partial<GameState> | null | undefined): number => {
+    return Number(state?.updatedAt ?? state?.createdAt ?? 0);
+  };
+
+  const applyPersistedState = (state: GameState) => {
+    if (state.settings) setSettings(state.settings);
+    if (state.players) setPlayers(state.players);
+    if (state.rounds) setRounds(state.rounds);
+    if (state.savedPlayers) setSavedPlayers(state.savedPlayers);
+    if (state.settings?.dealerIndex !== undefined) {
+      setCurrentDealerIndex(state.settings.dealerIndex);
+    }
+    if (state.settings?.soundEnabled !== undefined) {
+      soundManager.setEnabled(state.settings.soundEnabled);
+    }
+  };
 
   // Load from LocalStorage on mount
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved) {
-        const parsed: GameState = JSON.parse(saved);
-        if (parsed.settings) setSettings(parsed.settings);
-        if (parsed.players) setPlayers(parsed.players);
-        if (parsed.rounds) setRounds(parsed.rounds);
-        if (parsed.savedPlayers) setSavedPlayers(parsed.savedPlayers);
-        if (parsed.settings?.dealerIndex !== undefined) {
-          setCurrentDealerIndex(parsed.settings.dealerIndex);
+    let cancelled = false;
+
+    const bootstrapState = async () => {
+      let localState: GameState | null = null;
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          localState = JSON.parse(saved) as GameState;
         }
-        if (parsed.settings?.soundEnabled !== undefined) {
-          soundManager.setEnabled(parsed.settings.soundEnabled);
-        }
+      } catch {
+        // Ignore local load error
       }
-    } catch {
-      // Ignore load error
-    }
+
+      let cloudState: GameState | null = null;
+      let uid: string | null = null;
+      if (isCloudSyncConfigured()) {
+        setCloudSyncStatus('connecting');
+        try {
+          const cloud = await loadCloudGameState();
+          if (cloud) {
+            uid = cloud.uid;
+            cloudState = cloud.state;
+          }
+          setCloudSyncStatus('synced');
+          setCloudSyncError(null);
+          setCloudLastSyncedAt(Date.now());
+        } catch (err) {
+          setCloudSyncStatus('error');
+          setCloudSyncError(getErrorMessage(err));
+          // Ignore cloud load error and fall back to local-only behavior
+        }
+      } else {
+        setCloudSyncStatus('disabled');
+        setCloudSyncError(null);
+      }
+
+      if (cancelled) return;
+
+      if (uid) setCloudUid(uid);
+
+      const localStamp = getStateTimestamp(localState);
+      const cloudStamp = getStateTimestamp(cloudState);
+      const preferredState = cloudStamp > localStamp ? cloudState : localState;
+
+      if (preferredState) {
+        applyPersistedState(preferredState);
+      }
+
+      setIsHydrated(true);
+    };
+
+    void bootstrapState();
+
+    return () => {
+      cancelled = true;
+    };
 
   }, []);
 
-  // Save state to LocalStorage
+  // Save state to LocalStorage and cloud
   useEffect(() => {
+    if (!isHydrated) return;
+
     try {
       const stateToSave: GameState = {
         id: 'current',
@@ -75,13 +170,44 @@ export const App: React.FC = () => {
         currentDealerId: players[currentDealerIndex % players.length]?.id || 'p1',
         isFinished: false,
         winnerId: null,
+        savedPlayers,
         createdAt: Date.now(),
+        updatedAt: Date.now(),
       };
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(stateToSave));
+
+      if (saveDebounceRef.current !== null) {
+        window.clearTimeout(saveDebounceRef.current);
+      }
+
+      saveDebounceRef.current = window.setTimeout(() => {
+        void (async () => {
+          if (!isCloudSyncConfigured()) {
+            setCloudSyncStatus('disabled');
+            setCloudSyncError(null);
+            return;
+          }
+
+          try {
+            setCloudSyncStatus('syncing');
+            const syncedUid = await saveCloudGameState(stateToSave, cloudUid);
+            if (syncedUid && syncedUid !== cloudUid) {
+              setCloudUid(syncedUid);
+            }
+            setCloudSyncStatus('synced');
+            setCloudSyncError(null);
+            setCloudLastSyncedAt(Date.now());
+          } catch (err) {
+            setCloudSyncStatus('error');
+            setCloudSyncError(getErrorMessage(err));
+            // Ignore cloud save errors and keep local save as source of truth
+          }
+        })();
+      }, 500);
     } catch {
       // Ignore save error
     }
-  }, [settings, players, rounds, currentDealerIndex]);
+  }, [settings, players, rounds, currentDealerIndex, savedPlayers, isHydrated, cloudUid]);
 
   // Entities for scoring (Players or Teams)
   const getEntities = () => {
@@ -270,6 +396,9 @@ export const App: React.FC = () => {
         soundEnabled={settings.soundEnabled}
         onToggleSound={handleToggleSound}
         currentDealerName={currentDealer?.name}
+        cloudSyncStatus={cloudSyncStatus}
+        cloudSyncError={cloudSyncError}
+        cloudLastSyncedAt={cloudLastSyncedAt}
       />
 
       {/* Main Content Area */}

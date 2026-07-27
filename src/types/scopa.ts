@@ -59,5 +59,6 @@ export interface GameState {
   winnerId: string | null;
   savedPlayers?: string[];
   createdAt: number;
+  updatedAt?: number;
 }
 

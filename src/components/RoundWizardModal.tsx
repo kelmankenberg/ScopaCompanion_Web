@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Check, ArrowRight, ArrowLeft, Zap, Layers } from 'lucide-react';
 
 import type { GameSettings, Suit } from '../types/scopa';
@@ -35,9 +35,11 @@ export const RoundWizardModal: React.FC<RoundWizardModalProps> = ({
   const [denariCount, setDenariCount] = useState<Record<string, number>>(() =>
     Object.fromEntries(entities.map((e) => [e.id, 0]))
   );
+  const [denariAutoBalance, setDenariAutoBalance] = useState<boolean>(entities.length === 2);
   const [cardsCount, setCardsCount] = useState<Record<string, number>>(() =>
     Object.fromEntries(entities.map((e) => [e.id, 0]))
   );
+  const [cardsAutoBalance, setCardsAutoBalance] = useState<boolean>(entities.length === 2);
   const [primieraSelections, setPrimieraSelections] = useState<Record<string, Record<Suit, number | null>>>(() =>
     Object.fromEntries(
       entities.map((e) => [e.id, { denari: null, coppe: null, spade: null, bastoni: null }])
@@ -52,6 +54,13 @@ export const RoundWizardModal: React.FC<RoundWizardModalProps> = ({
   const [overrideScores, setOverrideScores] = useState<Record<string, number>>(() =>
     Object.fromEntries(entities.map((e) => [e.id, 0]))
   );
+
+  useEffect(() => {
+    if (isOpen) {
+      setEntryMode('wizard');
+      setCurrentStep(1);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -69,16 +78,92 @@ export const RoundWizardModal: React.FC<RoundWizardModalProps> = ({
     else soundManager.playClick();
   };
 
+  const clampDenari = (val: number) => Math.max(0, Math.min(10, val));
+
   const handleDenariChange = (id: string, val: number) => {
     soundManager.playCardSelect();
-    const clamped = Math.max(0, Math.min(10, val));
-    setDenariCount((prev) => ({ ...prev, [id]: clamped }));
+    const clamped = clampDenari(val);
+    setDenariCount((prev) => {
+      const next = { ...prev, [id]: clamped };
+      if (denariAutoBalance && entities.length === 2) {
+        const other = entities.find((e) => e.id !== id);
+        if (other) {
+          next[other.id] = clampDenari(10 - clamped);
+        }
+      }
+      return next;
+    });
   };
+
+  const handleDenariReset = () => {
+    soundManager.playClick();
+    setDenariCount(Object.fromEntries(entities.map((e) => [e.id, 0])));
+  };
+
+  const handleDenariSplit = () => {
+    soundManager.playCardSelect();
+    if (entities.length === 2) {
+      setDenariCount({ [entities[0].id]: 5, [entities[1].id]: 5 });
+      return;
+    }
+
+    const evenBase = Math.floor(10 / entities.length);
+    const remainder = 10 % entities.length;
+    const next: Record<string, number> = {};
+    entities.forEach((e, idx) => {
+      next[e.id] = evenBase + (idx < remainder ? 1 : 0);
+    });
+    setDenariCount(next);
+  };
+
+  const handleDenariAllTo = (id: string) => {
+    soundManager.playCardSelect();
+    const next = Object.fromEntries(entities.map((e) => [e.id, e.id === id ? 10 : 0]));
+    setDenariCount(next);
+  };
+
+  const clampCards = (val: number) => Math.max(0, Math.min(40, val));
 
   const handleCardsChange = (id: string, val: number) => {
     soundManager.playCardSelect();
-    const clamped = Math.max(0, Math.min(40, val));
-    setCardsCount((prev) => ({ ...prev, [id]: clamped }));
+    const clamped = clampCards(val);
+    setCardsCount((prev) => {
+      const next = { ...prev, [id]: clamped };
+      if (cardsAutoBalance && entities.length === 2) {
+        const other = entities.find((e) => e.id !== id);
+        if (other) {
+          next[other.id] = clampCards(40 - clamped);
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleCardsReset = () => {
+    soundManager.playClick();
+    setCardsCount(Object.fromEntries(entities.map((e) => [e.id, 0])));
+  };
+
+  const handleCardsSplit = () => {
+    soundManager.playCardSelect();
+    if (entities.length === 2) {
+      setCardsCount({ [entities[0].id]: 20, [entities[1].id]: 20 });
+      return;
+    }
+
+    const evenBase = Math.floor(40 / entities.length);
+    const remainder = 40 % entities.length;
+    const next: Record<string, number> = {};
+    entities.forEach((e, idx) => {
+      next[e.id] = evenBase + (idx < remainder ? 1 : 0);
+    });
+    setCardsCount(next);
+  };
+
+  const handleCardsAllTo = (id: string) => {
+    soundManager.playCardSelect();
+    const next = Object.fromEntries(entities.map((e) => [e.id, e.id === id ? 40 : 0]));
+    setCardsCount(next);
   };
 
 
@@ -253,104 +338,97 @@ export const RoundWizardModal: React.FC<RoundWizardModalProps> = ({
                     <div className="step-header-with-tracker">
                       <div>
                         <h3>🪙 Step 3: Denari (Coins Count)</h3>
-                        <p className="step-desc">Enter total Coin cards captured per player (Total 10 cards; majority &gt; 5 gets 1 point).</p>
+                        <p className="step-desc">Enter Coin cards captured per player/team (10 total; majority &gt; 5 earns 1 point).</p>
                       </div>
 
-                      <div className="total-tally-badge">
-                        <span>Total Tracked: <strong>{totalDenariSum} / 10 🪙</strong></span>
-                        {totalDenariSum > 10 && <span className="warning-pill">⚠️ Exceeds 10</span>}
+                      <div className={`total-tally-badge compact ${totalDenariSum === 10 ? 'ok' : totalDenariSum > 10 ? 'warn' : ''}`}>
+                        <span>
+                          Assigned: <strong>{totalDenariSum} / 10 🪙</strong>
+                        </span>
+                        {totalDenariSum > 10 && <span className="warning-pill">Too many coins</span>}
                       </div>
                     </div>
 
-                    {/* Optional Auto-fill helper if 2 players and remaining coins > 0 */}
-                    {entities.length === 2 && totalDenariSum < 10 && (
-                      <div className="autofill-helper-bar">
-                        <span>Unassigned Coins: <strong>{10 - totalDenariSum} 🪙</strong></span>
-                        {entities.map((e) => {
-                          const remaining = 10 - (entities.find((o) => o.id !== e.id) ? denariCount[entities.find((o) => o.id !== e.id)!.id] || 0 : 0);
-                          if (denariCount[e.id] === 0 || totalDenariSum < 10) {
-                            return (
-                              <button
-                                key={e.id}
-                                type="button"
-                                className="btn-autofill-sm"
-                                onClick={() => {
-                                  soundManager.playCardSelect();
-                                  setDenariCount({ ...denariCount, [e.id]: Math.max(0, Math.min(10, remaining)) });
-                                }}
-                              >
-                                Assign remaining ({10 - totalDenariSum}) 🪙 to {e.name}
-                              </button>
-                            );
-                          }
-                          return null;
-                        })}
+                    <div className="denari-toolbar">
+                      <div className="denari-quick-actions">
+                        <button type="button" className="btn-autofill-sm" onClick={handleDenariSplit}>
+                          Split 10
+                        </button>
+                        {entities.length === 2 && entities.map((e) => (
+                          <button
+                            key={e.id}
+                            type="button"
+                            className="btn-autofill-sm"
+                            onClick={() => handleDenariAllTo(e.id)}
+                          >
+                            All to {e.name}
+                          </button>
+                        ))}
+                        <button type="button" className="btn-autofill-sm" onClick={handleDenariReset}>
+                          Reset
+                        </button>
                       </div>
-                    )}
 
-                    <div className="modern-count-cards-list">
+                      {entities.length === 2 && (
+                        <label className="denari-balance-toggle">
+                          <input
+                            type="checkbox"
+                            checked={denariAutoBalance}
+                            onChange={(ev) => {
+                              soundManager.playClick();
+                              setDenariAutoBalance(ev.target.checked);
+                            }}
+                          />
+                          Auto-balance (10 total)
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="denari-compact-list">
                       {entities.map((e) => {
                         const count = denariCount[e.id] ?? 0;
                         const hasMajority = count > 5;
                         return (
-                          <div key={e.id} className="modern-count-card" style={{ borderLeftColor: e.color }}>
-                            <div className="count-card-top">
+                          <div key={e.id} className="denari-compact-row" style={{ borderLeftColor: e.color }}>
+                            <div className="denari-row-identity">
                               <span className="count-entity-name" style={{ color: e.color }}>{e.name}</span>
-                              {hasMajority && (
-                                <span className="majority-badge gold-glow">
-                                  👑 Denari Majority (1 pt)
-                                </span>
-                              )}
+                              {hasMajority && <span className="majority-badge">+1 Denari</span>}
                             </div>
 
-                            <div className="count-card-main">
+                            <div className="denari-row-controls">
                               <button
                                 type="button"
-                                className="stepper-btn-large"
+                                className="stepper-btn-sm"
                                 onClick={() => handleDenariChange(e.id, count - 1)}
                               >
                                 -
                               </button>
-
-                              <div className="count-value-display">
-                                <span className="count-symbol">🪙</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="10"
-                                  value={count}
-                                  onChange={(ev) => handleDenariChange(e.id, parseInt(ev.target.value) || 0)}
-                                  className="count-num-input"
-                                />
-                                <span className="count-max">/ 10</span>
-                              </div>
-
+                              <input
+                                type="number"
+                                min="0"
+                                max="10"
+                                value={count}
+                                onChange={(ev) => handleDenariChange(e.id, parseInt(ev.target.value) || 0)}
+                                className="count-num-input compact"
+                              />
                               <button
                                 type="button"
-                                className="stepper-btn-large highlight"
+                                className="stepper-btn-sm highlight"
                                 onClick={() => handleDenariChange(e.id, count + 1)}
                               >
                                 +
                               </button>
                             </div>
-
-                            {/* Fast Pill Selector 0 to 10 */}
-                            <div className="pill-chips-scroll custom-scrollbar">
-                              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((val) => (
-                                <button
-                                  key={val}
-                                  type="button"
-                                  className={`pill-chip ${count === val ? 'selected' : ''}`}
-                                  onClick={() => handleDenariChange(e.id, val)}
-                                >
-                                  {val}
-                                </button>
-                              ))}
-                            </div>
                           </div>
                         );
                       })}
                     </div>
+
+                    {entities.length === 2 && denariAutoBalance && (
+                      <div className="denari-helper-note">
+                        Editing one side automatically sets the other to keep totals at 10.
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -363,57 +441,64 @@ export const RoundWizardModal: React.FC<RoundWizardModalProps> = ({
                     <div className="step-header-with-tracker">
                       <div>
                         <h3>🃏 Step 4: Total Cards Count</h3>
-                        <p className="step-desc">Enter total cards captured per player (Total 40 cards; majority &gt; 20 gets 1 point).</p>
+                        <p className="step-desc">Enter total cards captured per player/team (40 total; majority &gt; 20 earns 1 point).</p>
                       </div>
 
-                      <div className="total-tally-badge">
-                        <span>Total Tracked: <strong>{totalCardsSum} / 40 🃏</strong></span>
-                        {totalCardsSum > 40 && <span className="warning-pill">⚠️ Exceeds 40</span>}
+                      <div className={`total-tally-badge compact ${totalCardsSum === 40 ? 'ok' : totalCardsSum > 40 ? 'warn' : ''}`}>
+                        <span>
+                          Assigned: <strong>{totalCardsSum} / 40 🃏</strong>
+                        </span>
+                        {totalCardsSum > 40 && <span className="warning-pill">Too many cards</span>}
                       </div>
                     </div>
 
-                    {/* Optional Auto-fill helper */}
-                    {entities.length === 2 && totalCardsSum < 40 && (
-                      <div className="autofill-helper-bar">
-                        <span>Unassigned Cards: <strong>{40 - totalCardsSum} 🃏</strong></span>
-                        {entities.map((e) => {
-                          const remaining = 40 - (entities.find((o) => o.id !== e.id) ? cardsCount[entities.find((o) => o.id !== e.id)!.id] || 0 : 0);
-                          if (cardsCount[e.id] === 0 || totalCardsSum < 40) {
-                            return (
-                              <button
-                                key={e.id}
-                                type="button"
-                                className="btn-autofill-sm"
-                                onClick={() => {
-                                  soundManager.playCardSelect();
-                                  setCardsCount({ ...cardsCount, [e.id]: Math.max(0, Math.min(40, remaining)) });
-                                }}
-                              >
-                                Assign remaining ({40 - totalCardsSum}) 🃏 to {e.name}
-                              </button>
-                            );
-                          }
-                          return null;
-                        })}
+                    <div className="cards-toolbar">
+                      <div className="cards-quick-actions">
+                        <button type="button" className="btn-autofill-sm" onClick={handleCardsSplit}>
+                          Split 40
+                        </button>
+                        {entities.length === 2 && entities.map((e) => (
+                          <button
+                            key={e.id}
+                            type="button"
+                            className="btn-autofill-sm"
+                            onClick={() => handleCardsAllTo(e.id)}
+                          >
+                            All to {e.name}
+                          </button>
+                        ))}
+                        <button type="button" className="btn-autofill-sm" onClick={handleCardsReset}>
+                          Reset
+                        </button>
                       </div>
-                    )}
 
-                    <div className="modern-count-cards-list">
+                      {entities.length === 2 && (
+                        <label className="cards-balance-toggle">
+                          <input
+                            type="checkbox"
+                            checked={cardsAutoBalance}
+                            onChange={(ev) => {
+                              soundManager.playClick();
+                              setCardsAutoBalance(ev.target.checked);
+                            }}
+                          />
+                          Auto-balance (40 total)
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="cards-compact-list">
                       {entities.map((e) => {
                         const count = cardsCount[e.id] ?? 0;
                         const hasMajority = count > 20;
                         return (
-                          <div key={e.id} className="modern-count-card" style={{ borderLeftColor: e.color }}>
-                            <div className="count-card-top">
+                          <div key={e.id} className="cards-compact-row" style={{ borderLeftColor: e.color }}>
+                            <div className="cards-row-identity">
                               <span className="count-entity-name" style={{ color: e.color }}>{e.name}</span>
-                              {hasMajority && (
-                                <span className="majority-badge gold-glow">
-                                  👑 Cards Majority (1 pt)
-                                </span>
-                              )}
+                              {hasMajority && <span className="majority-badge">+1 Cards</span>}
                             </div>
 
-                            <div className="count-card-main">
+                            <div className="cards-row-controls">
                               <button
                                 type="button"
                                 className="stepper-btn-sm"
@@ -423,28 +508,22 @@ export const RoundWizardModal: React.FC<RoundWizardModalProps> = ({
                               </button>
                               <button
                                 type="button"
-                                className="stepper-btn-large"
+                                className="stepper-btn-sm"
                                 onClick={() => handleCardsChange(e.id, count - 1)}
                               >
                                 -1
                               </button>
-
-                              <div className="count-value-display">
-                                <span className="count-symbol">🃏</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="40"
-                                  value={count}
-                                  onChange={(ev) => handleCardsChange(e.id, parseInt(ev.target.value) || 0)}
-                                  className="count-num-input"
-                                />
-                                <span className="count-max">/ 40</span>
-                              </div>
-
+                              <input
+                                type="number"
+                                min="0"
+                                max="40"
+                                value={count}
+                                onChange={(ev) => handleCardsChange(e.id, parseInt(ev.target.value) || 0)}
+                                className="count-num-input compact"
+                              />
                               <button
                                 type="button"
-                                className="stepper-btn-large highlight"
+                                className="stepper-btn-sm highlight"
                                 onClick={() => handleCardsChange(e.id, count + 1)}
                               >
                                 +1
@@ -457,24 +536,16 @@ export const RoundWizardModal: React.FC<RoundWizardModalProps> = ({
                                 +5
                               </button>
                             </div>
-
-                            {/* Quick Card Presets */}
-                            <div className="pill-chips-scroll custom-scrollbar">
-                              {[15, 18, 20, 21, 22, 25, 28, 30].map((val) => (
-                                <button
-                                  key={val}
-                                  type="button"
-                                  className={`pill-chip ${count === val ? 'selected' : ''}`}
-                                  onClick={() => handleCardsChange(e.id, val)}
-                                >
-                                  {val}
-                                </button>
-                              ))}
-                            </div>
                           </div>
                         );
                       })}
                     </div>
+
+                    {entities.length === 2 && cardsAutoBalance && (
+                      <div className="cards-helper-note">
+                        Editing one side automatically sets the other to keep totals at 40.
+                      </div>
+                    )}
                   </div>
                 );
               })()}
